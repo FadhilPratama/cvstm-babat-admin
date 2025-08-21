@@ -1,0 +1,82 @@
+import { NextResponse } from "next/server";
+import db from "@/lib/db";
+import { auth } from "@clerk/nextjs/server";
+
+export async function POST(
+    req: Request,
+    { params }: { params: Promise<{ storeId: string }> }
+) {
+    try {
+        const { userId } = await auth();
+        const body = await req.json();
+        const { label, imageUrl } = body;
+
+        // Await params before using it
+        const { storeId } = await params;
+
+        if (!userId) {
+            return new NextResponse("Unauthorized user", { status: 401 });
+        }
+
+        if (!label) {
+            return new NextResponse("Nama banner perlu diinput", { status: 400 });
+        }
+
+        if (!imageUrl) {
+            return new NextResponse("Image banner perlu diinput", { status: 400 });
+        }
+
+        if (!storeId) {
+            return new NextResponse("Store ID URL dibutuhkan", { status: 400 });
+        }
+
+        const storeByUserId = await db.store.findFirst({
+            where: {
+                id: storeId,
+                userId
+            },
+        });
+
+        if (!storeByUserId) {
+            return new NextResponse("Unauthorized", { status: 403 });
+        }
+
+        const banner = await db.banner.create({
+            data: {
+                label,
+                imageUrl,
+                storeId: storeId
+            },
+        });
+
+        return NextResponse.json(banner);
+    } catch (error) {
+        console.error("[BANNERS_POST]", error);
+        return new NextResponse("Internal error", { status: 500 });
+    }
+}
+
+export async function GET(
+    req: Request,
+    { params }: { params: Promise<{ storeId: string }> }
+) {
+    try {
+        // Await params before using it
+        const { storeId } = await params;
+
+        if (!storeId) {
+            return new NextResponse("Store ID URL dibutuhkan", { status: 400 });
+        }
+
+        const banners = await db.banner.findMany({
+            where: {
+                storeId: storeId
+            },
+        });
+
+        return NextResponse.json(banners);
+    } catch (error) {
+        console.error("[BANNERS_GET]", error);
+        return new NextResponse("Internal error", { status: 500 });
+    }
+}

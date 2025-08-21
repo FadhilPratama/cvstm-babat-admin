@@ -1,16 +1,32 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { FlatCompat } from '@eslint/eslintrc'
 
 const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
+  baseDirectory: import.meta.dirname,
+})
 
 const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
-];
+  // ⬅️ Tambahan ignore di sini
+  {
+    ignores: [
+      'lib/generated/prisma/**',
+      '.next/**',
+      'node_modules/**',
+      'dist/**',
+    ],
+  },
 
-export default eslintConfig;
+  ...compat.config({
+    extends: ['next/core-web-vitals', 'next/typescript'],
+  }),
+
+  // ⬇️ Override rules khusus file Prisma auto-generated
+  {
+    files: ['lib/generated/prisma/**/*.{js,ts}'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+    },
+  },
+]
+
+export default eslintConfig
