@@ -9,7 +9,7 @@ interface DecimalLike {
 // Serialize Prisma Decimal ke number biasa
 function serializeDecimal<T>(obj: T): T {
     return JSON.parse(
-        JSON.stringify(obj, (_key, value) => {
+        JSON.stringify(obj, (_, value) => {
             if (typeof value === "object" && value !== null) {
                 const maybeDecimal = value as Partial<DecimalLike>;
                 if (typeof maybeDecimal.toNumber === "function") {
@@ -29,6 +29,7 @@ interface ProductPageProps {
     };
 }
 
+// Ensure the component is defined as a React component
 const ProductPage = async ({ params }: ProductPageProps) => {
     const { productId, storeId } = params;
 
