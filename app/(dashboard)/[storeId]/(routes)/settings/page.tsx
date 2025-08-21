@@ -3,24 +3,24 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { SettingsForm } from "./components/settings-form";
 
-const SettingsPage = async ({
-                                params,
-                            }: {
-    params: { storeId: string };
-}) => {
+interface SettingsPageProps {
+    params: Promise<{ storeId: string }>
+}
+
+const SettingsPage = async ({ params }: SettingsPageProps) => {
     const { userId } = await auth();
 
     if (!userId) {
         redirect(`/sign-in`);
     }
 
-    const { storeId } = params;
+    const { storeId } = await params;
 
     const store = await db.store.findFirst({
         where: {
             id: storeId,
-            userId,
-        },
+            userId
+        }
     });
 
     if (!store) {
@@ -34,6 +34,6 @@ const SettingsPage = async ({
             </div>
         </div>
     );
-};
+}
 
 export default SettingsPage;

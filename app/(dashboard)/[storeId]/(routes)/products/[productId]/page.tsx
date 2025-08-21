@@ -22,9 +22,10 @@ function serializeDecimal<T>(obj: T): T {
 export default async function ProductPage({
                                               params,
                                           }: {
-    params: { productId: string; storeId: string };
+    params: Promise<{ productId: string; storeId: string }>;
 }) {
-    const { productId, storeId } = params;
+
+    const { productId, storeId } = await params;
 
     const product = await db.product.findUnique({
         where: { id: productId },
