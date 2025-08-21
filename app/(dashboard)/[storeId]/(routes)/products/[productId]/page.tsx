@@ -21,16 +21,12 @@ function serializeDecimal<T>(obj: T): T {
     );
 }
 
-// Define the ProductPageProps interface
-interface ProductPageProps {
-    params: {
-        productId: string;
-        storeId: string;
-    };
-}
-
-// Ensure the component is defined as a React component
-const ProductPage = async ({ params }: ProductPageProps) => {
+// Server component
+const ProductPage = async ({
+                               params,
+                           }: {
+    params: { productId: string; storeId: string };
+}) => {
     const { productId, storeId } = params;
 
     const product = await db.product.findUnique({
