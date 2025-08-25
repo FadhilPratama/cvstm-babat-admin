@@ -3,7 +3,7 @@
 import * as z from 'zod'
 import { useState } from 'react'
 
-import {Banner} from "@/lib/generated/prisma";
+import { Banner } from "@/lib/generated/prisma";
 import { Heading } from "@/components/ui/heading";
 import { Separator } from "@/components/ui/separator";
 import { Trash } from "lucide-react";
@@ -16,8 +16,6 @@ import toast from "react-hot-toast";
 import axios from "axios";
 import {useParams, useRouter} from "next/navigation";
 import {AlertModal} from "@/components/modals/alert-modal";
-// Hapus import useOrigin karena tidak digunakan
-// import {useOrigin} from "@/hooks/use-origin";
 import ImageUpload from "@/components/ui/image-upload";
 
 interface BannerFormProps {
@@ -36,8 +34,6 @@ export const BannerForm: React.FC<BannerFormProps> = ({
                                                       }) => {
     const params = useParams()
     const router = useRouter()
-    // Hapus variabel origin karena tidak digunakan
-    // const origin = useOrigin()
 
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -67,7 +63,6 @@ export const BannerForm: React.FC<BannerFormProps> = ({
             router.push(`/${params.storeId}/banners`);
             toast.success(toastMessage);
         } catch (error) {
-            // Menggunakan error parameter untuk logging
             console.error("Error submitting banner:", error);
             toast.error("Cek kembali data yang diinput")
         } finally {
@@ -83,7 +78,6 @@ export const BannerForm: React.FC<BannerFormProps> = ({
             router.push(`/${params.storeId}/banners`);
             toast.success("Banner berhasil dihapus");
         } catch (error) {
-            // Menggunakan error parameter untuk logging
             console.error("Error deleting banner:", error);
             toast.error("Cek kembali data dan koneksi mu")
         } finally {

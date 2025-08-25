@@ -85,32 +85,46 @@ export async function GET(
     { params }: { params: Promise<{ storeId: string }> }
 ) {
     try {
+        const { searchParams } = new URL(req.url);
 
-        const {searchParams} = new URL(req.url);
-        const categoryId = searchParams.get("categoryId") || undefined
-        const isFeatured = searchParams.get("isFeatured")
+        const categoryId = searchParams.get("categoryId") || undefined;
+        const isFeatured = searchParams.get("isFeatured");
+        const query = searchParams.get("q") || "";
+        const global = searchParams.get("global") === "true";
 
         const { storeId } = await params;
 
-        if (!storeId) {
+        if (!global && !storeId) {
             return new NextResponse("Store ID URL dibutuhkan", { status: 400 });
         }
 
         const products = await db.product.findMany({
             where: {
-                storeId: storeId,
+                ...(global
+                    ? {} // abaikan store filter → semua store
+                    : { storeId }),
+
                 categoryId,
                 isFeatured: isFeatured ? true : undefined,
                 isArchived: false,
+
+                // pencarian nama produk
+                ...(query
+                    ? {
+                        name: {
+                            contains: query,
+                            mode: "insensitive",
+                        },
+                    }
+                    : {}),
             },
             include: {
                 images: true,
                 category: true,
             },
-
             orderBy: {
-                createdAt: 'desc'
-            }
+                createdAt: "desc",
+            },
         });
 
         return NextResponse.json(products);
