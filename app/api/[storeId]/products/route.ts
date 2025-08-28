@@ -2,13 +2,10 @@ import { NextResponse } from "next/server";
 import db from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
 
-interface RouteContext {
-    params: {
-        storeId: string;
-    };
-}
-
-export async function POST(req: Request, context: RouteContext) {
+export async function POST(
+    req: Request,
+    context: { params: { storeId: string } }
+) {
     try {
         const { userId } = await auth();
         const body = await req.json();
@@ -60,7 +57,10 @@ export async function POST(req: Request, context: RouteContext) {
     }
 }
 
-export async function GET(req: Request, context: RouteContext) {
+export async function GET(
+    req: Request,
+    context: { params: { storeId: string } }
+) {
     try {
         const { searchParams } = new URL(req.url);
 
