@@ -4,14 +4,14 @@ import { auth } from "@clerk/nextjs/server";
 
 export async function POST(
     req: Request,
-    context: { params: { storeId: string } }
+    context: { params: Record<string, string> }
 ) {
     try {
         const { userId } = await auth();
         const body = await req.json();
         const { name, price, categoryId, images, isFeatured, isArchived } = body;
 
-        const { storeId } = context.params;
+        const storeId = context.params.storeId;
 
         if (!userId) {
             return new NextResponse("Unauthorized user", { status: 401 });
@@ -44,7 +44,7 @@ export async function POST(
                 storeId,
                 images: {
                     createMany: {
-                        data: [...images.map((image: { url: string }) => image)],
+                        data: images.map((image: { url: string }) => image),
                     },
                 },
             },
@@ -59,7 +59,7 @@ export async function POST(
 
 export async function GET(
     req: Request,
-    context: { params: { storeId: string } }
+    context: { params: Record<string, string> }
 ) {
     try {
         const { searchParams } = new URL(req.url);
@@ -69,7 +69,7 @@ export async function GET(
         const query = searchParams.get("q") || undefined;
         const global = searchParams.get("global") === "true";
 
-        const { storeId } = context.params;
+        const storeId = context.params.storeId;
 
         if (!global && !storeId) {
             return new NextResponse("Store ID URL dibutuhkan", { status: 400 });
@@ -81,9 +81,7 @@ export async function GET(
                 categoryId,
                 isFeatured: isFeatured === "true" ? true : undefined,
                 isArchived: false,
-                ...(query
-                    ? { name: { contains: query, mode: "insensitive" } }
-                    : {}),
+                ...(query ? { name: { contains: query, mode: "insensitive" } } : {}),
             },
             include: {
                 images: true,
