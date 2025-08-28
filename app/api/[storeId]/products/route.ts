@@ -2,13 +2,21 @@ import { NextResponse } from "next/server";
 import db from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
 
-export async function POST(req: Request, context: any) {
+// bikin type context sekali di sini
+type ContextParams = {
+    params: {
+        storeId: string;
+    };
+};
+
+export async function POST(req: Request, context: unknown) {
     try {
         const { userId } = await auth();
         const body = await req.json();
         const { name, price, categoryId, images, isFeatured, isArchived } = body;
 
-        const storeId = context.params.storeId;
+        // cast sekali aja
+        const { storeId } = (context as ContextParams).params;
 
         if (!userId) {
             return new NextResponse("Unauthorized user", { status: 401 });
@@ -54,7 +62,7 @@ export async function POST(req: Request, context: any) {
     }
 }
 
-export async function GET(req: Request, context: any) {
+export async function GET(req: Request, context: unknown) {
     try {
         const { searchParams } = new URL(req.url);
 
@@ -63,7 +71,8 @@ export async function GET(req: Request, context: any) {
         const query = searchParams.get("q") || undefined;
         const global = searchParams.get("global") === "true";
 
-        const storeId = context.params.storeId;
+        // cast sekali aja
+        const { storeId } = (context as ContextParams).params;
 
         if (!global && !storeId) {
             return new NextResponse("Store ID URL dibutuhkan", { status: 400 });
