@@ -2,16 +2,19 @@ import { NextResponse } from "next/server";
 import db from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
 
-export async function POST(
-    req: Request,
-    { params }: { params: { storeId: string } }
-) {
+interface RouteContext {
+    params: {
+        storeId: string;
+    };
+}
+
+export async function POST(req: Request, context: RouteContext) {
     try {
         const { userId } = await auth();
         const body = await req.json();
         const { name, price, categoryId, images, isFeatured, isArchived } = body;
 
-        const { storeId } = params;
+        const { storeId } = context.params;
 
         if (!userId) {
             return new NextResponse("Unauthorized user", { status: 401 });
@@ -57,10 +60,7 @@ export async function POST(
     }
 }
 
-export async function GET(
-    req: Request,
-    { params }: { params: { storeId: string } }
-) {
+export async function GET(req: Request, context: RouteContext) {
     try {
         const { searchParams } = new URL(req.url);
 
@@ -69,7 +69,7 @@ export async function GET(
         const query = searchParams.get("q") || undefined;
         const global = searchParams.get("global") === "true";
 
-        const { storeId } = params;
+        const { storeId } = context.params;
 
         if (!global && !storeId) {
             return new NextResponse("Store ID URL dibutuhkan", { status: 400 });
