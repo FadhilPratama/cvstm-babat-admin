@@ -2,10 +2,7 @@ import { NextResponse } from "next/server";
 import db from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
 
-export async function POST(
-    req: Request,
-    context: { params: Record<string, string> }
-) {
+export async function POST(req: Request, context: any) {
     try {
         const { userId } = await auth();
         const body = await req.json();
@@ -57,10 +54,7 @@ export async function POST(
     }
 }
 
-export async function GET(
-    req: Request,
-    context: { params: Record<string, string> }
-) {
+export async function GET(req: Request, context: any) {
     try {
         const { searchParams } = new URL(req.url);
 
