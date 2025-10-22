@@ -1,9 +1,9 @@
-'use client';
+'use client'
 
 import { useEffect, useState } from "react";
 import { Button } from "./button";
 import { ImagePlus, Trash } from "lucide-react";
-import { CldUploadWidget, type CloudinaryUploadWidgetResults } from "next-cloudinary";
+import { CldUploadWidget } from "next-cloudinary";
 import Image from "next/image";
 
 interface ImageUploadProps {
@@ -25,39 +25,19 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
         setIsMounted(true);
     }, []);
 
-    const onUpload = (result: CloudinaryUploadWidgetResults) => {
-        if (result.event !== "success") return;
-
-        if (
-            result.info &&
-            typeof result.info !== "string" &&
-            "secure_url" in result.info
-        ) {
-            const newUrl = result.info.secure_url as string;
-
-            if (!value.includes(newUrl)) {
-                onChange(newUrl);
-            }
-        }
+    const onUpload = (result: any) => {
+        onChange(result.info.secure_url);
     };
-
-
 
     if (!isMounted) {
         return null;
     }
 
-    // Remove duplicates and use index for keys
-    const uniqueImages = [...new Set(value)];
-
     return (
         <div>
             <div className="mb-4 flex items-center gap-4">
-                {uniqueImages.map((url, index) => (
-                    <div
-                        key={`image-${index}`}
-                        className="relative w-[200px] h-[200px] rounded-md overflow-hidden"
-                    >
+                {value.map((url) => (
+                    <div key={url} className="relative w-[200px] h-[200px] rounded-md overflow-hidden">
                         <div className="z-10 absolute top-2 right-2">
                             <Button
                                 type="button"
@@ -78,7 +58,10 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                     </div>
                 ))}
             </div>
-            <CldUploadWidget onUpload={onUpload} uploadPreset="upload_preset">
+            <CldUploadWidget
+                onSuccess={onUpload}
+                uploadPreset="upload_preset"
+            >
                 {({ open }) => {
                     const onClick = () => {
                         open();

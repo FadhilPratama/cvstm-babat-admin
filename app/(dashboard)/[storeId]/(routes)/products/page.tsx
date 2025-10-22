@@ -1,7 +1,6 @@
 import { ProductClient } from "./components/client";
 import db from "@/lib/db";
 import { format } from "date-fns";
-import { formatter } from "@/lib/utils";
 import { ProductColumn } from "@/app/(dashboard)/[storeId]/(routes)/products/components/columns";
 
 const ProductsPage = async ({
@@ -28,7 +27,6 @@ const ProductsPage = async ({
         name: item.name,
         isFeatured: item.isFeatured,
         isArchived: item.isArchived,
-        price: formatter.format(item.price.toNumber()),
         category: item.category.name,
         createdAt: format(item.createdAt, "MMM dd, yyyy"),
     }));

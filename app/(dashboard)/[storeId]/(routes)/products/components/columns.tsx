@@ -6,7 +6,6 @@ import { CellAction } from "@/app/(dashboard)/[storeId]/(routes)/products/compon
 export type ProductColumn = {
     id: string;
     name: string;
-    price: string;
     category: string;
     isFeatured: boolean;
     isArchived: boolean;
@@ -28,11 +27,7 @@ export const columns: ColumnDef<ProductColumn>[] = [
         header: "Featured",
 
     },
-    {
-        accessorKey: "price",
-        header: "Price",
 
-    },
     {
         accessorKey: "category",
         header: "Category",

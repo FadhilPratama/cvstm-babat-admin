@@ -40,9 +40,10 @@ export default async function ProductPage({
         <div className="flex-col">
             <div className="flex-1 space-y-4 p-8 pt-6">
                 <ProductForm
-                    initialData={product ? serializeDecimal(product) : null}
+                    initialData={product ? serializeDecimal(product) : { name: "", description: "", images: [] }}
                     categories={serializeDecimal(categories)}
                 />
+
             </div>
         </div>
     );
