@@ -48,26 +48,23 @@ model Category {
 }
 
 model Product {
-  id         String   @id @default(uuid())
-  storeId    String
-  store      Store    @relation("StoreToProduct", fields: [storeId], references: [id])
-  categoryId String
-  category   Category @relation("CategoryToProduct", fields: [categoryId], references: [id])
-  name       String
-  isFeatured Boolean  @default(false)
-  isArchived Boolean  @default(false)
-
-  // New product detail fields
-  description       String? @db.Text
-  activeIngredients String? @db.Text
-  netWeight         String?
+  id                String   @id @default(uuid())
+  storeId           String
+  categoryId        String
+  name              String
+  isArchived        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  isFeatured        Boolean  @default(false)
+  activeIngredients String?
+  description       String?
   manufacturer      String?
-  shelfLife         String?
+  netWeight         String?
   packaging         String?
-
-  images    Image[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  shelfLife         String?
+  images            Image[]
+  category          Category @relation("CategoryToProduct", fields: [categoryId], references: [id])
+  store             Store    @relation("StoreToProduct", fields: [storeId], references: [id])
 
   @@index([storeId])
   @@index([categoryId])
@@ -76,10 +73,10 @@ model Product {
 model Image {
   id        String   @unique @default(uuid())
   productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   url       String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
 }
