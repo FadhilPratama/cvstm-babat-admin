@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import db from "@/lib/db";
 
@@ -6,35 +6,22 @@ import db from "@/lib/db";
 // GET SINGLE PRODUCT
 // ==========================================================
 export async function GET(
-    req: Request,
-    { params }: { params: { storeId: string; productId: string } }
+    _req: NextRequest,  // Fixed: Added underscore prefix
+    context: { params: Promise<{ storeId: string; productId: string }> }
 ) {
     try {
-        const { storeId, productId } = params;
+        const { storeId, productId } = await context.params;
 
-        if (!storeId) {
+        if (!storeId || !productId) {
             return NextResponse.json(
-                { error: "Store ID dibutuhkan" },
-                { status: 400 }
-            );
-        }
-
-        if (!productId) {
-            return NextResponse.json(
-                { error: "Product ID dibutuhkan" },
+                { error: "Store ID dan Product ID dibutuhkan" },
                 { status: 400 }
             );
         }
 
         const product = await db.product.findUnique({
-            where: {
-                id: productId,
-                storeId,
-            },
-            include: {
-                images: true,
-                category: true,
-            },
+            where: { id: productId, storeId },
+            include: { images: true, category: true },
         });
 
         if (!product) {
@@ -55,15 +42,15 @@ export async function GET(
 }
 
 // ==========================================================
-// UPDATE PRODUCT (PATCH)
+// PATCH
 // ==========================================================
 export async function PATCH(
-    req: Request,
-    { params }: { params: { storeId: string; productId: string } }
+    req: NextRequest,
+    context: { params: Promise<{ storeId: string; productId: string }> }
 ) {
     try {
         const { userId } = await auth();
-        const { storeId, productId } = params;
+        const { storeId, productId } = await context.params;
         const body = await req.json();
 
         const {
@@ -80,106 +67,32 @@ export async function PATCH(
             packaging,
         } = body;
 
-        // ===== Validasi =====
-        if (!userId) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
+        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        if (!storeId || !productId) return NextResponse.json({ error: "Store ID dan Product ID dibutuhkan" }, { status: 400 });
 
-        if (!storeId) {
+        if (!name || !categoryId || !images?.length) {
             return NextResponse.json(
-                { error: "Store ID dibutuhkan" },
+                { error: "Nama, kategori, dan gambar wajib diisi" },
                 { status: 400 }
             );
         }
 
-        if (!productId) {
-            return NextResponse.json(
-                { error: "Product ID dibutuhkan" },
-                { status: 400 }
-            );
-        }
+        const store = await db.store.findFirst({ where: { id: storeId, userId } });
+        if (!store) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
-        if (!name) {
-            return NextResponse.json(
-                { error: "Nama produk perlu diinput" },
-                { status: 400 }
-            );
-        }
+        const category = await db.category.findFirst({ where: { id: categoryId, storeId } });
+        if (!category) return NextResponse.json({ error: "Kategori tidak ditemukan" }, { status: 400 });
 
-        if (!categoryId) {
-            return NextResponse.json(
-                { error: "Kategori perlu diinput" },
-                { status: 400 }
-            );
-        }
+        const existingProduct = await db.product.findFirst({ where: { id: productId, storeId } });
+        if (!existingProduct) return NextResponse.json({ error: "Produk tidak ditemukan" }, { status: 404 });
 
-        if (!images?.length) {
-            return NextResponse.json(
-                { error: "Image perlu diinput" },
-                { status: 400 }
-            );
-        }
-
-        // ===== Verifikasi store ownership =====
-        const store = await db.store.findFirst({
-            where: {
-                id: storeId,
-                userId
-            },
-        });
-
-        if (!store) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 403 }
-            );
-        }
-
-        // ===== Verifikasi kategori =====
-        const category = await db.category.findFirst({
-            where: {
-                id: categoryId,
-                storeId
-            },
-        });
-
-        if (!category) {
-            return NextResponse.json(
-                { error: "Kategori tidak ditemukan" },
-                { status: 400 }
-            );
-        }
-
-        // ===== Verifikasi produk exists =====
-        const existingProduct = await db.product.findFirst({
-            where: {
-                id: productId,
-                storeId
-            },
-        });
-
-        if (!existingProduct) {
-            return NextResponse.json(
-                { error: "Produk tidak ditemukan" },
-                { status: 404 }
-            );
-        }
-
-        // ===== Update dengan transaksi =====
+        // Fixed: Removed redundant 'await' before db.$transaction
         const updatedProduct = await db.$transaction(async (tx) => {
-            // Hapus gambar lama
-            await tx.image.deleteMany({
-                where: { productId }
-            });
+            await tx.image.deleteMany({ where: { productId } });
 
-            // Update produk dengan gambar baru
-            return await tx.product.update({
-                where: {
-                    id: productId,
-                },
+            // Fixed: Removed redundant 'await' in return statement
+            return tx.product.update({
+                where: { id: productId },
                 data: {
                     name,
                     categoryId,
@@ -193,16 +106,11 @@ export async function PATCH(
                     packaging: packaging || null,
                     images: {
                         createMany: {
-                            data: images.map((img: { url: string }) => ({
-                                url: img.url
-                            })),
+                            data: images.map((img: { url: string }) => ({ url: img.url })),
                         },
                     },
                 },
-                include: {
-                    images: true,
-                    category: true,
-                },
+                include: { images: true, category: true },
             });
         });
 
@@ -217,59 +125,23 @@ export async function PATCH(
 }
 
 // ==========================================================
-// DELETE PRODUCT
+// DELETE
 // ==========================================================
 export async function DELETE(
-    req: Request,
-    { params }: { params: { storeId: string; productId: string } }
+    _req: NextRequest,  // Fixed: Added underscore prefix
+    context: { params: Promise<{ storeId: string; productId: string }> }
 ) {
     try {
         const { userId } = await auth();
-        const { storeId, productId } = params;
+        const { storeId, productId } = await context.params;
 
-        if (!userId) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
+        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        if (!storeId || !productId) return NextResponse.json({ error: "Store ID dan Product ID dibutuhkan" }, { status: 400 });
 
-        if (!storeId) {
-            return NextResponse.json(
-                { error: "Store ID dibutuhkan" },
-                { status: 400 }
-            );
-        }
+        const store = await db.store.findFirst({ where: { id: storeId, userId } });
+        if (!store) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
-        if (!productId) {
-            return NextResponse.json(
-                { error: "Product ID dibutuhkan" },
-                { status: 400 }
-            );
-        }
-
-        // ===== Verifikasi store ownership =====
-        const store = await db.store.findFirst({
-            where: {
-                id: storeId,
-                userId
-            },
-        });
-
-        if (!store) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 403 }
-            );
-        }
-
-        // ===== Delete product (cascade akan hapus images juga jika sudah setup di schema) =====
-        await db.product.delete({
-            where: {
-                id: productId,
-                storeId,
-            },
-        });
+        await db.product.delete({ where: { id: productId, storeId } });
 
         return NextResponse.json({ message: "Produk berhasil dihapus" });
     } catch (error) {

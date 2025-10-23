@@ -1,16 +1,23 @@
 'use client'
 
-import { useEffect, useState } from "react";
-import { Button } from "./button";
-import { ImagePlus, Trash } from "lucide-react";
-import { CldUploadWidget } from "next-cloudinary";
-import Image from "next/image";
+import { useEffect, useState } from "react"
+import { Button } from "./button"
+import { ImagePlus, Trash } from "lucide-react"
+import { CldUploadWidget, CloudinaryUploadWidgetResults } from "next-cloudinary"
+import Image from "next/image"
 
 interface ImageUploadProps {
-    disabled?: boolean;
-    onChange: (value: string) => void;
-    onRemove: (value: string) => void;
-    value: string[];
+    disabled?: boolean
+    onChange: (value: string) => void
+    onRemove: (value: string) => void
+    value: string[]
+}
+
+type UploadResult = CloudinaryUploadWidgetResults & {
+    event?: string
+    info?: {
+        secure_url?: string
+    }
 }
 
 const ImageUpload: React.FC<ImageUploadProps> = ({
@@ -19,25 +26,28 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                                                      onRemove,
                                                      value,
                                                  }) => {
-    const [isMounted, setIsMounted] = useState(false);
+    const [isMounted, setIsMounted] = useState(false)
 
     useEffect(() => {
-        setIsMounted(true);
-    }, []);
+        setIsMounted(true)
+    }, [])
 
-    const onUpload = (result: any) => {
-        onChange(result.info.secure_url);
-    };
-
-    if (!isMounted) {
-        return null;
+    const onUpload = (result: UploadResult) => {
+        if (result.event === "success" && result.info?.secure_url) {
+            onChange(result.info.secure_url)
+        }
     }
+
+    if (!isMounted) return null
 
     return (
         <div>
             <div className="mb-4 flex items-center gap-4">
                 {value.map((url) => (
-                    <div key={url} className="relative w-[200px] h-[200px] rounded-md overflow-hidden">
+                    <div
+                        key={url}
+                        className="relative w-[200px] h-[200px] rounded-md overflow-hidden"
+                    >
                         <div className="z-10 absolute top-2 right-2">
                             <Button
                                 type="button"
@@ -49,23 +59,17 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                                 <Trash className="h-4 w-4" />
                             </Button>
                         </div>
-                        <Image
-                            fill
-                            className="object-cover"
-                            alt="Image"
-                            src={url}
-                        />
+                        <Image fill className="object-cover" alt="Image" src={url} />
                     </div>
                 ))}
             </div>
+
             <CldUploadWidget
                 onSuccess={onUpload}
                 uploadPreset="upload_preset"
             >
-                {({ open }) => {
-                    const onClick = () => {
-                        open();
-                    };
+                {({ open }: { open: () => void }) => {
+                    const onClick = () => open()
 
                     return (
                         <Button
@@ -77,11 +81,11 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                             <ImagePlus className="h-4 w-4 mr-2" />
                             Upload an Image
                         </Button>
-                    );
+                    )
                 }}
             </CldUploadWidget>
         </div>
-    );
-};
+    )
+}
 
-export default ImageUpload;
+export default ImageUpload

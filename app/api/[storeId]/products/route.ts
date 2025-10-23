@@ -3,18 +3,18 @@ import { auth } from "@clerk/nextjs/server";
 import db from "@/lib/db";
 
 type ContextParams = {
-    params: {
+    params: Promise<{
         storeId: string;
-    };
+    }>;
 };
 
 // ===========================================
 // CREATE PRODUCT (POST) — hanya untuk user login
 // ===========================================
-export async function POST(req: Request, context: unknown) {
+export async function POST(req: Request, context: ContextParams) {
     try {
         const { userId } = await auth();
-        const { storeId } = (context as ContextParams).params;
+        const { storeId } = await context.params;
         const body = await req.json();
 
         const {
@@ -91,10 +91,11 @@ export async function POST(req: Request, context: unknown) {
         });
 
         return NextResponse.json(product);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("[PRODUCTS_POST_ERROR]", error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return NextResponse.json(
-            { error: `Terjadi kesalahan internal: ${error.message || error}` },
+            { error: `Terjadi kesalahan internal: ${errorMessage}` },
             { status: 500 }
         );
     }
@@ -103,10 +104,10 @@ export async function POST(req: Request, context: unknown) {
 // ===========================================
 // GET PRODUCTS (GET) — publik tanpa auth
 // ===========================================
-export async function GET(req: Request, context: unknown) {
+export async function GET(req: Request, context: ContextParams) {
     try {
         const { searchParams } = new URL(req.url);
-        const { storeId } = (context as ContextParams).params;
+        const { storeId } = await context.params;
 
         const categoryId = searchParams.get("categoryId") || undefined;
         const isFeatured = searchParams.get("isFeatured");
@@ -139,10 +140,11 @@ export async function GET(req: Request, context: unknown) {
         });
 
         return NextResponse.json(products);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("[PRODUCTS_GET_ERROR]", error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return NextResponse.json(
-            { error: `Terjadi kesalahan internal: ${error.message || error}` },
+            { error: `Terjadi kesalahan internal: ${errorMessage}` },
             { status: 500 }
         );
     }

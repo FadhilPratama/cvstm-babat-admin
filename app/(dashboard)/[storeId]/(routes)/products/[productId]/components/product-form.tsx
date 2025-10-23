@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -34,119 +34,126 @@ import ImageUpload from "@/components/ui/image-upload";
 import { AlertModal } from "@/components/modals/alert-modal";
 import { Trash } from "lucide-react";
 
-// ✅ Zod Schema Validation
+// ✅ Schema pakai zod
 const formSchema = z.object({
     name: z.string().min(1, "Product name is required"),
     categoryId: z.string().min(1, "Category is required"),
-    images: z
-        .array(z.object({ url: z.string().url("Invalid image URL") }))
-        .nonempty("At least one image is required"),
+    images: z.object({ url: z.string() }).array(),
     isFeatured: z.boolean().default(false).optional(),
     isArchived: z.boolean().default(false).optional(),
-    description: z.string().optional(),
-    activeIngredients: z.string().optional(),
-    netWeight: z.string().optional(),
-    manufacturer: z.string().optional(),
-    shelfLife: z.string().optional(),
-    packaging: z.string().optional(),
+    description: z.string().nullable().optional(),
+    activeIngredients: z.string().nullable().optional(),
+    netWeight: z.string().nullable().optional(),
+    manufacturer: z.string().nullable().optional(),
+    shelfLife: z.string().nullable().optional(),
+    packaging: z.string().nullable().optional(),
 });
 
 type ProductFormValues = z.infer<typeof formSchema>;
 
-interface ProductFormProps {
-    initialData: any;
-    categories: Array<{ id: string; name: string }>;
+interface Category {
+    id: string;
+    name: string;
 }
 
-const normalizeProductData = (data: any): ProductFormValues => ({
-    name: data?.name ?? "",
-    categoryId: data?.categoryId ?? "",
-    images: data?.images ?? [],
-    isFeatured: data?.isFeatured ?? false,
-    isArchived: data?.isArchived ?? false,
-    description: data?.description ?? "",
-    activeIngredients: data?.activeIngredients ?? "",
-    netWeight: data?.netWeight ?? "",
-    manufacturer: data?.manufacturer ?? "",
-    shelfLife: data?.shelfLife ?? "",
-    packaging: data?.packaging ?? "",
-});
+interface ProductFormProps {
+    initialData?: Partial<ProductFormValues> & {
+        id?: string;
+        images?: { id?: string; url: string }[];
+    };
+    categories: Category[];
+}
 
-export const ProductForm: React.FC<ProductFormProps> = ({
-                                                            initialData,
-                                                            categories,
-                                                        }) => {
-    const params = useParams();
+// ✅ Normalisasi data agar tidak ada null/undefined yang bentrok
+function normalizeProductData(data?: ProductFormProps["initialData"]): ProductFormValues {
+    return {
+        name: data?.name ?? "",
+        categoryId: data?.categoryId ?? "",
+        images: (data?.images ?? []).map((img) => ({ url: img.url })),
+        isFeatured: data?.isFeatured ?? false,
+        isArchived: data?.isArchived ?? false,
+        description: data?.description ?? "",
+        activeIngredients: data?.activeIngredients ?? "",
+        netWeight: data?.netWeight ?? "",
+        manufacturer: data?.manufacturer ?? "",
+        shelfLife: data?.shelfLife ?? "",
+        packaging: data?.packaging ?? "",
+    };
+}
+
+export const ProductForm = ({ initialData, categories }: ProductFormProps) => {
+    const params = useParams<{ storeId: string; productId?: string }>();
     const router = useRouter();
 
+    const [loading, setLoading] = useState(false);
     const [open, setOpen] = useState(false);
-    const [isPending, startTransition] = useTransition();
 
-    const isEditing = Boolean(initialData);
-    const title = isEditing ? "Edit Product" : "Create Product";
-    const description = isEditing ? "Edit the product details." : "Add a new product.";
-    const toastMessage = isEditing ? "Product updated successfully." : "Product created successfully.";
-    const action = isEditing ? "Save changes" : "Create";
+    const title = initialData ? "Edit product" : "Create product";
+    const description = initialData ? "Edit a product." : "Add a new product";
+    const toastMessage = initialData
+        ? "Product updated successfully"
+        : "Product created successfully";
+    const action = initialData ? "Save changes" : "Create";
 
     const form = useForm<ProductFormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: normalizeProductData(initialData),
-        mode: "onChange",
     });
 
     const onSubmit = async (data: ProductFormValues) => {
-        startTransition(async () => {
-            try {
-                if (isEditing) {
-                    await axios.patch(`/api/${params.storeId}/products/${params.productId}`, data);
-                } else {
-                    await axios.post(`/api/${params.storeId}/products`, data);
-                }
+        try {
+            setLoading(true);
 
-                toast.success(toastMessage);
-                router.push(`/${params.storeId}/products`);
-                router.refresh();
-            } catch (error: any) {
-                console.error("Error submitting form:", error);
-                toast.error(error?.response?.data?.message || "Something went wrong.");
+            if (initialData?.id) {
+                await axios.patch(`/api/${params.storeId}/products/${params.productId}`, data);
+            } else {
+                await axios.post(`/api/${params.storeId}/products`, data);
             }
-        });
+
+            toast.success(toastMessage);
+            router.push(`/${params.storeId}/products`);
+            router.refresh();
+        } catch (error) {
+            console.error("Error submitting form:", error);
+            toast.error("Something went wrong. Please check your data and try again.");
+        } finally {
+            setLoading(false);
+        }
     };
 
     const onDelete = async () => {
-        startTransition(async () => {
-            try {
-                await axios.delete(`/api/${params.storeId}/products/${params.productId}`);
-                toast.success("Product deleted successfully.");
-                router.push(`/${params.storeId}/products`);
-                router.refresh();
-            } catch (error: any) {
-                console.error("Error deleting product:", error);
-                toast.error(error?.response?.data?.message || "Failed to delete product.");
-            } finally {
-                setOpen(false);
-            }
-        });
+        try {
+            setLoading(true);
+            await axios.delete(`/api/${params.storeId}/products/${params.productId}`);
+            toast.success("Product deleted successfully");
+            router.push(`/${params.storeId}/products`);
+            router.refresh();
+        } catch (error) {
+            console.error("Error deleting product:", error);
+            toast.error("Failed to delete product. Please try again.");
+        } finally {
+            setLoading(false);
+            setOpen(false);
+        }
     };
 
     return (
         <>
-            <AlertModal isOpen={open} onClose={() => setOpen(false)} onConfirm={onDelete} loading={isPending} />
+            <AlertModal isOpen={open} onClose={() => setOpen(false)} onConfirm={onDelete} loading={loading} />
 
             <div className="flex items-center justify-between">
                 <Heading title={title} description={description} />
-                {isEditing && (
-                    <Button disabled={isPending} variant="destructive" size="sm" onClick={() => setOpen(true)}>
+                {initialData && (
+                    <Button disabled={loading} variant="destructive" size="sm" onClick={() => setOpen(true)}>
                         <Trash className="h-4 w-4" />
                     </Button>
                 )}
             </div>
-
-            <Separator className="my-4" />
+            <Separator />
 
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 w-full">
-                    {/* === Images === */}
+                    {/* Images */}
                     <FormField
                         control={form.control}
                         name="images"
@@ -156,7 +163,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                                 <FormControl>
                                     <ImageUpload
                                         value={field.value.map((image) => image.url)}
-                                        disabled={isPending}
+                                        disabled={loading}
                                         onChange={(url) => field.onChange([...field.value, { url }])}
                                         onRemove={(url) => field.onChange(field.value.filter((img) => img.url !== url))}
                                     />
@@ -166,7 +173,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                         )}
                     />
 
-                    {/* === Basic Info === */}
+                    {/* Basic Information */}
                     <div className="space-y-4">
                         <h3 className="text-lg font-medium">Basic Information</h3>
                         <div className="md:grid md:grid-cols-2 gap-8">
@@ -175,22 +182,21 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                                 name="name"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Product Name</FormLabel>
+                                        <FormLabel>Name</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="Enter product name" disabled={isPending} {...field} />
+                                            <Input disabled={loading} placeholder="Product name" {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}
                             />
-
                             <FormField
                                 control={form.control}
                                 name="categoryId"
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Category</FormLabel>
-                                        <Select onValueChange={field.onChange} value={field.value} disabled={isPending}>
+                                        <Select disabled={loading} onValueChange={field.onChange} value={field.value}>
                                             <FormControl>
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Select a category" />
@@ -213,9 +219,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
                     <Separator />
 
-                    {/* === Product Details === */}
+                    {/* Product Details */}
                     <div className="space-y-4">
                         <h3 className="text-lg font-medium">Product Details</h3>
+
                         <FormField
                             control={form.control}
                             name="description"
@@ -223,7 +230,13 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                                 <FormItem>
                                     <FormLabel>Description</FormLabel>
                                     <FormControl>
-                                        <Textarea placeholder="Write product description..." disabled={isPending} {...field} />
+                                        <Textarea
+                                            disabled={loading}
+                                            placeholder="Product description..."
+                                            className="min-h-[100px]"
+                                            {...field}
+                                            value={field.value ?? ""}
+                                        />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -232,12 +245,12 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
                         <div className="md:grid md:grid-cols-2 gap-8">
                             {[
-                                { name: "activeIngredients", label: "Active Ingredients", placeholder: "e.g., Benih jagung F1" },
-                                { name: "netWeight", label: "Net Weight / Content", placeholder: "e.g., 5 kg" },
-                                { name: "manufacturer", label: "Manufacturer", placeholder: "e.g., Syngenta" },
-                                { name: "shelfLife", label: "Shelf Life", placeholder: "e.g., 2 years" },
-                                { name: "packaging", label: "Packaging", placeholder: "e.g., Plastic bag" },
-                            ].map(({ name, label, placeholder }) => (
+                                ["activeIngredients", "Active Ingredients", "e.g., Benih jagung hibrida F1"],
+                                ["netWeight", "Net Weight / Content", "e.g., 5 kg"],
+                                ["manufacturer", "Manufacturer", "e.g., Syngenta"],
+                                ["shelfLife", "Shelf Life", "e.g., 2 years"],
+                                ["packaging", "Packaging", "e.g., Plastic bag"],
+                            ].map(([name, label, placeholder]) => (
                                 <FormField
                                     key={name}
                                     control={form.control}
@@ -246,7 +259,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                                         <FormItem>
                                             <FormLabel>{label}</FormLabel>
                                             <FormControl>
-                                                <Input placeholder={placeholder} disabled={isPending} {...field} />
+                                                <Input disabled={loading} placeholder={placeholder} {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -258,44 +271,45 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
                     <Separator />
 
-                    {/* === Settings === */}
+                    {/* Settings */}
                     <div className="space-y-4">
                         <h3 className="text-lg font-medium">Settings</h3>
-                        <div className="flex flex-wrap gap-4">
-                            <FormField
-                                control={form.control}
-                                name="isFeatured"
-                                render={({ field }) => (
-                                    <FormItem className="flex items-start space-x-3 border rounded-md p-4">
-                                        <FormControl>
-                                            <Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={isPending} />
-                                        </FormControl>
-                                        <div className="space-y-1 leading-none">
-                                            <FormLabel>Featured</FormLabel>
-                                            <FormDescription>This product will appear on the home page.</FormDescription>
-                                        </div>
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="isArchived"
-                                render={({ field }) => (
-                                    <FormItem className="flex items-start space-x-3 border rounded-md p-4">
-                                        <FormControl>
-                                            <Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={isPending} />
-                                        </FormControl>
-                                        <div className="space-y-1 leading-none">
-                                            <FormLabel>Archived</FormLabel>
-                                            <FormDescription>This product will not appear anywhere in the store.</FormDescription>
-                                        </div>
-                                    </FormItem>
-                                )}
-                            />
+                        <div className="flex items-center space-x-8">
+                            {[
+                                ["isFeatured", "Featured", "This product will appear on the home page"],
+                                ["isArchived", "Archived", "This product will not appear anywhere in the store"],
+                            ].map(([name, label, desc]) => (
+                                <FormField
+                                    key={name}
+                                    control={form.control}
+                                    name={name as keyof ProductFormValues}
+                                    render={({ field }) => (
+                                        <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                                            <FormControl>
+                                                <Checkbox
+                                                    checked={
+                                                        field.value == null
+                                                            ? undefined
+                                                            : typeof field.value === "boolean"
+                                                                ? field.value
+                                                                : Boolean(field.value)
+                                                    }
+                                                    onCheckedChange={field.onChange}
+                                                    disabled={loading}
+                                                />
+                                            </FormControl>
+                                            <div className="space-y-1 leading-none">
+                                                <FormLabel>{label}</FormLabel>
+                                                <FormDescription>{desc}</FormDescription>
+                                            </div>
+                                        </FormItem>
+                                    )}
+                                />
+                            ))}
                         </div>
                     </div>
 
-                    <Button disabled={isPending} className="ml-auto" type="submit">
+                    <Button disabled={loading} className="ml-auto" type="submit">
                         {action}
                     </Button>
                 </form>
