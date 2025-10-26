@@ -120,16 +120,27 @@ export async function GET(req: Request, context: ContextParams) {
             return NextResponse.json({ error: "Store ID URL dibutuhkan" }, { status: 400 });
         }
 
+        // Build where clause dengan search yang lebih comprehensive
+        const whereClause: any = {
+            storeId,
+            categoryId,
+            isFeatured: isFeatured === "true" ? true : undefined,
+            isArchived: false,
+        };
+
+        // Jika ada query, search di multiple fields
+        if (query) {
+            whereClause.OR = [
+                { name: { contains: query, mode: "insensitive" } },
+                { description: { contains: query, mode: "insensitive" } },
+                { activeIngredients: { contains: query, mode: "insensitive" } },
+                { manufacturer: { contains: query, mode: "insensitive" } },
+                { category: { name: { contains: query, mode: "insensitive" } } },
+            ];
+        }
+
         const products = await db.product.findMany({
-            where: {
-                storeId,
-                categoryId,
-                isFeatured: isFeatured === "true" ? true : undefined,
-                isArchived: false,
-                ...(query
-                    ? { name: { contains: query, mode: "insensitive" } }
-                    : {}),
-            },
+            where: whereClause,
             include: {
                 images: true,
                 category: true,
@@ -138,6 +149,8 @@ export async function GET(req: Request, context: ContextParams) {
                 createdAt: "desc",
             },
         });
+
+        console.log(`Found ${products.length} products${query ? ` for query "${query}"` : ""}`);
 
         return NextResponse.json(products);
     } catch (error: unknown) {
