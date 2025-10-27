@@ -19,7 +19,6 @@ export async function POST(req: Request, context: ContextParams) {
 
         const {
             name,
-            price,
             categoryId,
             images,
             isFeatured,
@@ -40,7 +39,6 @@ export async function POST(req: Request, context: ContextParams) {
         // Validasi field wajib
         if (!name) return new NextResponse("Nama perlu diinput", { status: 400 });
         if (!images || !images.length) return new NextResponse("Image perlu diinput", { status: 400 });
-        if (!price) return new NextResponse("Harga perlu diinput", { status: 400 });
         if (!categoryId) return new NextResponse("Kategori perlu diinput", { status: 400 });
         if (!storeId) return new NextResponse("Store ID URL dibutuhkan", { status: 400 });
 
@@ -66,7 +64,6 @@ export async function POST(req: Request, context: ContextParams) {
         const product = await db.product.create({
             data: {
                 name,
-                price,
                 categoryId,
                 storeId,
                 isFeatured: !!isFeatured,
