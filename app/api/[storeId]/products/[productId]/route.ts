@@ -2,51 +2,55 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import db from "@/lib/db";
 
+type ContextParams = {
+    params: Promise<{
+        storeId: string;
+        productId: string;
+    }>;
+};
+
 // ==========================================================
-// GET SINGLE PRODUCT
+// GET SINGLE PRODUCT - Public
 // ==========================================================
 export async function GET(
-    _req: NextRequest,  // Fixed: Added underscore prefix
-    context: { params: Promise<{ storeId: string; productId: string }> }
+    _req: NextRequest,
+    context: ContextParams
 ) {
     try {
-        const { storeId, productId } = await context.params;
+        const { productId } = await context.params;
 
-        if (!storeId || !productId) {
-            return NextResponse.json(
-                { error: "Store ID dan Product ID dibutuhkan" },
-                { status: 400 }
-            );
+        if (!productId) {
+            return new NextResponse("Product id dibutuhkan", { status: 400 });
         }
 
+        // Public endpoint - tidak perlu validasi storeId
         const product = await db.product.findUnique({
-            where: { id: productId, storeId },
-            include: { images: true, category: true },
+            where: {
+                id: productId,
+            },
+            include: {
+                images: true,
+                category: true,
+            },
         });
 
         if (!product) {
-            return NextResponse.json(
-                { error: "Produk tidak ditemukan" },
-                { status: 404 }
-            );
+            return new NextResponse("Produk tidak ditemukan", { status: 404 });
         }
 
         return NextResponse.json(product);
     } catch (error) {
-        console.error("[PRODUCT_GET_ERROR]", error);
-        return NextResponse.json(
-            { error: "Terjadi kesalahan internal" },
-            { status: 500 }
-        );
+        console.error("[PRODUCT_GET]", error);
+        return new NextResponse("Internal error", { status: 500 });
     }
 }
 
 // ==========================================================
-// PATCH
+// PATCH PRODUCT - Admin Only
 // ==========================================================
 export async function PATCH(
     req: NextRequest,
-    context: { params: Promise<{ storeId: string; productId: string }> }
+    context: ContextParams
 ) {
     try {
         const { userId } = await auth();
@@ -67,32 +71,70 @@ export async function PATCH(
             packaging,
         } = body;
 
-        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        if (!storeId || !productId) return NextResponse.json({ error: "Store ID dan Product ID dibutuhkan" }, { status: 400 });
-
-        if (!name || !categoryId || !images?.length) {
-            return NextResponse.json(
-                { error: "Nama, kategori, dan gambar wajib diisi" },
-                { status: 400 }
-            );
+        // Validasi user
+        if (!userId) {
+            return new NextResponse("Unauthenticated", { status: 401 });
         }
 
-        const store = await db.store.findFirst({ where: { id: storeId, userId } });
-        if (!store) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+        if (!storeId || !productId) {
+            return new NextResponse("Store ID dan Product ID dibutuhkan", { status: 400 });
+        }
 
-        const category = await db.category.findFirst({ where: { id: categoryId, storeId } });
-        if (!category) return NextResponse.json({ error: "Kategori tidak ditemukan" }, { status: 400 });
+        // Validasi field wajib
+        if (!name) {
+            return new NextResponse("Nama perlu diinput", { status: 400 });
+        }
 
-        const existingProduct = await db.product.findFirst({ where: { id: productId, storeId } });
-        if (!existingProduct) return NextResponse.json({ error: "Produk tidak ditemukan" }, { status: 404 });
+        if (!images || !images.length) {
+            return new NextResponse("Image perlu diinput", { status: 400 });
+        }
 
-        // Fixed: Removed redundant 'await' before db.$transaction
-        const updatedProduct = await db.$transaction(async (tx) => {
-            await tx.image.deleteMany({ where: { productId } });
+        if (!categoryId) {
+            return new NextResponse("Kategori perlu diinput", { status: 400 });
+        }
 
-            // Fixed: Removed redundant 'await' in return statement
-            return tx.product.update({
-                where: { id: productId },
+        // Verifikasi kepemilikan store
+        const storeByUserId = await db.store.findFirst({
+            where: {
+                id: storeId,
+                userId,
+            },
+        });
+
+        if (!storeByUserId) {
+            return new NextResponse("Unauthorized", { status: 403 });
+        }
+
+        // Verifikasi kategori exists
+        const category = await db.category.findFirst({
+            where: { id: categoryId, storeId },
+        });
+
+        if (!category) {
+            return new NextResponse("Kategori tidak ditemukan", { status: 400 });
+        }
+
+        // Verifikasi product exists
+        const existingProduct = await db.product.findFirst({
+            where: { id: productId, storeId },
+        });
+
+        if (!existingProduct) {
+            return new NextResponse("Produk tidak ditemukan", { status: 404 });
+        }
+
+        // Update product dengan transaction
+        const product = await db.$transaction(async (tx) => {
+            // Delete old images
+            await tx.image.deleteMany({
+                where: { productId },
+            });
+
+            // Update product with new data
+            return await tx.product.update({
+                where: {
+                    id: productId,
+                },
                 data: {
                     name,
                     categoryId,
@@ -106,49 +148,74 @@ export async function PATCH(
                     packaging: packaging || null,
                     images: {
                         createMany: {
-                            data: images.map((img: { url: string }) => ({ url: img.url })),
+                            data: images.map((image: { url: string }) => ({ url: image.url })),
                         },
                     },
                 },
-                include: { images: true, category: true },
+                include: {
+                    images: true,
+                    category: true,
+                },
             });
         });
 
-        return NextResponse.json(updatedProduct);
+        return NextResponse.json(product);
     } catch (error) {
-        console.error("[PRODUCT_PATCH_ERROR]", error);
-        return NextResponse.json(
-            { error: "Terjadi kesalahan internal" },
-            { status: 500 }
-        );
+        console.error("[PRODUCT_PATCH]", error);
+        return new NextResponse("Internal error", { status: 500 });
     }
 }
 
 // ==========================================================
-// DELETE
+// DELETE PRODUCT - Admin Only
 // ==========================================================
 export async function DELETE(
-    _req: NextRequest,  // Fixed: Added underscore prefix
-    context: { params: Promise<{ storeId: string; productId: string }> }
+    _req: NextRequest,
+    context: ContextParams
 ) {
     try {
         const { userId } = await auth();
         const { storeId, productId } = await context.params;
 
-        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        if (!storeId || !productId) return NextResponse.json({ error: "Store ID dan Product ID dibutuhkan" }, { status: 400 });
+        if (!userId) {
+            return new NextResponse("Unauthenticated", { status: 401 });
+        }
 
-        const store = await db.store.findFirst({ where: { id: storeId, userId } });
-        if (!store) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+        if (!storeId || !productId) {
+            return new NextResponse("Store ID dan Product ID dibutuhkan", { status: 400 });
+        }
 
-        await db.product.delete({ where: { id: productId, storeId } });
+        // Verifikasi kepemilikan store
+        const storeByUserId = await db.store.findFirst({
+            where: {
+                id: storeId,
+                userId,
+            },
+        });
 
-        return NextResponse.json({ message: "Produk berhasil dihapus" });
+        if (!storeByUserId) {
+            return new NextResponse("Unauthorized", { status: 403 });
+        }
+
+        // Verifikasi product exists
+        const existingProduct = await db.product.findFirst({
+            where: { id: productId, storeId },
+        });
+
+        if (!existingProduct) {
+            return new NextResponse("Produk tidak ditemukan", { status: 404 });
+        }
+
+        // Delete product (images akan auto-delete karena cascade)
+        const product = await db.product.delete({
+            where: {
+                id: productId,
+            },
+        });
+
+        return NextResponse.json(product);
     } catch (error) {
-        console.error("[PRODUCT_DELETE_ERROR]", error);
-        return NextResponse.json(
-            { error: "Terjadi kesalahan internal" },
-            { status: 500 }
-        );
+        console.error("[PRODUCT_DELETE]", error);
+        return new NextResponse("Internal error", { status: 500 });
     }
 }

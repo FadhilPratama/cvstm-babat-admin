@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import db from "@/lib/db";
+import { auth } from "@clerk/nextjs/server";
 
 type ContextParams = {
     params: Promise<{
@@ -9,7 +9,7 @@ type ContextParams = {
 };
 
 // ===========================================
-// CREATE PRODUCT (POST) — hanya untuk user login
+// CREATE PRODUCT (POST) - Admin Only
 // ===========================================
 export async function POST(req: Request, context: ContextParams) {
     try {
@@ -31,40 +31,36 @@ export async function POST(req: Request, context: ContextParams) {
             packaging,
         } = body;
 
-        // ===== Validasi dasar =====
+        // Validasi user
         if (!userId) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-        if (!storeId) {
-            return NextResponse.json({ error: "Store ID URL dibutuhkan" }, { status: 400 });
-        }
-        if (!name) {
-            return NextResponse.json({ error: "Nama produk perlu diinput" }, { status: 400 });
-        }
-        if (!categoryId) {
-            return NextResponse.json({ error: "Kategori perlu diinput" }, { status: 400 });
-        }
-        if (!images?.length) {
-            return NextResponse.json({ error: "Image perlu diinput" }, { status: 400 });
+            return new NextResponse("Unauthorized user", { status: 401 });
         }
 
-        // ===== Verifikasi kepemilikan store =====
-        const store = await db.store.findFirst({
+        // Validasi field wajib
+        if (!name) return new NextResponse("Nama perlu diinput", { status: 400 });
+        if (!images || !images.length) return new NextResponse("Image perlu diinput", { status: 400 });
+        if (!categoryId) return new NextResponse("Kategori perlu diinput", { status: 400 });
+        if (!storeId) return new NextResponse("Store ID URL dibutuhkan", { status: 400 });
+
+        // Verifikasi kepemilikan store
+        const storeByUserId = await db.store.findFirst({
             where: { id: storeId, userId },
         });
-        if (!store) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+
+        if (!storeByUserId) {
+            return new NextResponse("Unauthorized", { status: 403 });
         }
 
-        // ===== Verifikasi kategori =====
+        // Verifikasi kategori exists
         const category = await db.category.findFirst({
             where: { id: categoryId, storeId },
         });
+
         if (!category) {
-            return NextResponse.json({ error: "Kategori tidak ditemukan" }, { status: 400 });
+            return new NextResponse("Kategori tidak ditemukan", { status: 400 });
         }
 
-        // ===== Create product =====
+        // Create product
         const product = await db.product.create({
             data: {
                 name,
@@ -80,7 +76,7 @@ export async function POST(req: Request, context: ContextParams) {
                 packaging: packaging || null,
                 images: {
                     createMany: {
-                        data: images.map((img: { url: string }) => ({ url: img.url })),
+                        data: images.map((image: { url: string }) => ({ url: image.url })),
                     },
                 },
             },
@@ -91,18 +87,14 @@ export async function POST(req: Request, context: ContextParams) {
         });
 
         return NextResponse.json(product);
-    } catch (error: unknown) {
-        console.error("[PRODUCTS_POST_ERROR]", error);
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        return NextResponse.json(
-            { error: `Terjadi kesalahan internal: ${errorMessage}` },
-            { status: 500 }
-        );
+    } catch (error) {
+        console.error("[PRODUCTS_POST]", error);
+        return new NextResponse("Internal error", { status: 500 });
     }
 }
 
 // ===========================================
-// GET PRODUCTS (GET) — publik tanpa auth
+// GET PRODUCTS - Public & Admin
 // ===========================================
 export async function GET(req: Request, context: ContextParams) {
     try {
@@ -112,31 +104,36 @@ export async function GET(req: Request, context: ContextParams) {
         const categoryId = searchParams.get("categoryId") || undefined;
         const isFeatured = searchParams.get("isFeatured");
         const query = searchParams.get("q") || undefined;
+        const global = searchParams.get("global") === "true";
 
-        console.log("StoreID:", storeId);
-        console.log("Search params:", Object.fromEntries(searchParams));
+        console.log("🔍 GET Products - params:", {
+            global,
+            storeId,
+            categoryId,
+            isFeatured,
+            query,
+        });
 
-        if (!storeId) {
-            return NextResponse.json({ error: "Store ID URL dibutuhkan" }, { status: 400 });
+        // Validasi storeId jika bukan global request
+        if (!global && !storeId) {
+            return new NextResponse("Store ID URL dibutuhkan", { status: 400 });
         }
 
-        // Build where clause dengan search yang lebih comprehensive
+        // Build where clause
         const whereClause: any = {
-            storeId,
+            ...(global ? {} : { storeId }),
             categoryId,
             isFeatured: isFeatured === "true" ? true : undefined,
             isArchived: false,
         };
 
-        // Jika ada query, search di multiple fields
+        // Search di multiple fields jika ada query
         if (query) {
             whereClause.OR = [
                 { name: { contains: query, mode: "insensitive" } },
-                { description: { contains: query, mode: "insensitive" } },
-                { activeIngredients: { contains: query, mode: "insensitive" } },
-                { manufacturer: { contains: query, mode: "insensitive" } },
                 { category: { name: { contains: query, mode: "insensitive" } } },
             ];
+
         }
 
         const products = await db.product.findMany({
@@ -145,20 +142,14 @@ export async function GET(req: Request, context: ContextParams) {
                 images: true,
                 category: true,
             },
-            orderBy: {
-                createdAt: "desc",
-            },
+            orderBy: { createdAt: "desc" },
         });
 
-        console.log(`Found ${products.length} products${query ? ` for query "${query}"` : ""}`);
+        console.log(`✅ Found ${products.length} products${query ? ` for query "${query}"` : ""}`);
 
         return NextResponse.json(products);
-    } catch (error: unknown) {
-        console.error("[PRODUCTS_GET_ERROR]", error);
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        return NextResponse.json(
-            { error: `Terjadi kesalahan internal: ${errorMessage}` },
-            { status: 500 }
-        );
+    } catch (error) {
+        console.error("[PRODUCTS_GET]", error);
+        return new NextResponse("Internal error", { status: 500 });
     }
 }
