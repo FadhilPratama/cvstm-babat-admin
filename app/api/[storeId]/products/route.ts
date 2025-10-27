@@ -19,6 +19,7 @@ export async function POST(req: Request, context: ContextParams) {
 
         const {
             name,
+            price,
             categoryId,
             images,
             isFeatured,
@@ -39,6 +40,7 @@ export async function POST(req: Request, context: ContextParams) {
         // Validasi field wajib
         if (!name) return new NextResponse("Nama perlu diinput", { status: 400 });
         if (!images || !images.length) return new NextResponse("Image perlu diinput", { status: 400 });
+        if (!price) return new NextResponse("Harga perlu diinput", { status: 400 });
         if (!categoryId) return new NextResponse("Kategori perlu diinput", { status: 400 });
         if (!storeId) return new NextResponse("Store ID URL dibutuhkan", { status: 400 });
 
@@ -64,6 +66,7 @@ export async function POST(req: Request, context: ContextParams) {
         const product = await db.product.create({
             data: {
                 name,
+                price,
                 categoryId,
                 storeId,
                 isFeatured: !!isFeatured,
@@ -119,8 +122,22 @@ export async function GET(req: Request, context: ContextParams) {
             return new NextResponse("Store ID URL dibutuhkan", { status: 400 });
         }
 
-        // Build where clause
-        const whereClause: any = {
+        // Build where clause dengan type yang proper
+        interface WhereClause {
+            storeId?: string;
+            categoryId?: string;
+            isFeatured?: boolean;
+            isArchived: boolean;
+            OR?: Array<{
+                name?: { contains: string; mode: "insensitive" };
+                category?: { name: { contains: string; mode: "insensitive" } };
+                description?: { contains: string; mode: "insensitive" };
+                activeIngredients?: { contains: string; mode: "insensitive" };
+                manufacturer?: { contains: string; mode: "insensitive" };
+            }>;
+        }
+
+        const whereClause: WhereClause = {
             ...(global ? {} : { storeId }),
             categoryId,
             isFeatured: isFeatured === "true" ? true : undefined,
@@ -134,6 +151,10 @@ export async function GET(req: Request, context: ContextParams) {
                 { category: { name: { contains: query, mode: "insensitive" } } },
             ];
 
+            // Jika ada field tambahan (description, manufacturer, dll), uncomment ini:
+            // { description: { contains: query, mode: "insensitive" } },
+            // { activeIngredients: { contains: query, mode: "insensitive" } },
+            // { manufacturer: { contains: query, mode: "insensitive" } },
         }
 
         const products = await db.product.findMany({
